@@ -17,9 +17,8 @@ public class BoardDAO {
     private ResultSet generatedKeys;
 
     public BoardDAO() {
-        conn = new ConnectionJdbc().getConnection();
+        conn = ConnectionJdbc.getConnection();
     }
-
 
     /**
      * 입력한 board에 대한 내용을 DB baord 테이블에 저장하는 메서드.
@@ -50,12 +49,14 @@ public class BoardDAO {
                     if (generatedKeys.next()) {
                         return generatedKeys.getLong(1);
                     }
-                } catch (SQLException SQLe) {
-                    SQLe.printStackTrace();
+                } catch (SQLException e) {
+                    e.printStackTrace();
                 }
             }
-        } catch (SQLException SQLe) {
-            SQLe.printStackTrace();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        } finally {
+            ConnectionJdbc.releaseResources();
         }
 
         return -1L;
@@ -66,16 +67,30 @@ public class BoardDAO {
      * @return boardVO리스트를 반환한다.(boardVO : 카테고리, 제목, 작성자, 조회수, 등록 일시, 수정 일시)
      * @See 페이지네이션 미구현
      */
-    public List<BoardVO> getBoardList() {
+    public List<BoardVO> getBoardList(int page) {
         List<BoardVO> boardVOs = new ArrayList<>();
         try {
-            String sql = "SELECT board_id, category_id, name," +
-                    " title, view_count, created_date," +
-                    " update_date FROM board";
+//            String sql = "SELECT * FROM (SELECT board_id, category_id, name," +
+//                    " title, view_count, created_date," +
+//                    " update_date FROM board" +
+//                    " (SELECT * FROM board ORDER BY created_date DESC))" +
+//                    " WHERE board_id >= ? and board_id <= ?";
+
+            String sql = "SELECT * FROM (" +
+                    "SELECT board_id, category_id," +
+                    " name, title, view_count," +
+                    " created_date, update_date" +
+                        " FROM (" +
+                            " SELECT * FROM board ORDER BY created_date DESC" +
+                        ") AS derived_table" +
+                    ") AS final_result" +
+            " LIMIT ?, 10";
+
+            int startRow =  (page - 1) * 10;
 
             psmt = conn.prepareStatement(sql);
+            psmt.setInt(1, startRow);
             rs = psmt.executeQuery();
-
             while (rs.next()) {
                 BoardVO boardVO = BoardVO.builder()
                         .boardId(rs.getLong("board_id"))
@@ -88,8 +103,10 @@ public class BoardDAO {
                         .build();
                 boardVOs.add(boardVO);
             }
-        } catch (SQLException SQLe) {
-            SQLe.printStackTrace();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        } finally {
+            ConnectionJdbc.releaseResources();
         }
 
         return boardVOs;
@@ -124,8 +141,10 @@ public class BoardDAO {
 
                 return boardVO;
             }
-        } catch (SQLException SQLe) {
-            SQLe.printStackTrace();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        } finally {
+            ConnectionJdbc.releaseResources();
         }
 
         return null;
@@ -143,8 +162,10 @@ public class BoardDAO {
             psmt = conn.prepareStatement(sql);
             psmt.setLong(1, boardId);
             psmt.executeUpdate();
-        } catch (SQLException SQLe) {
-            SQLe.printStackTrace();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        } finally {
+            ConnectionJdbc.releaseResources();
         }
     }
 
@@ -154,10 +175,10 @@ public class BoardDAO {
      * @See 유효성 검증 X, 파일첨부 X
      */
     public void updateBoard(BoardVO boardVO) {
-        String sql = "UPDATE board SET title=?, " +
-                "content=?, name=?, update_date=NOW()" +
-                " WHERE board_id=?";
         try {
+            String sql = "UPDATE board SET title=?, " +
+                    "content=?, name=?, update_date=NOW()" +
+                    " WHERE board_id=?";
             psmt = conn.prepareStatement(sql);
             int idx = 1;
             psmt.setString(idx++, boardVO.getTitle());
@@ -165,8 +186,10 @@ public class BoardDAO {
             psmt.setString(idx++, boardVO.getName());
             psmt.setLong(idx++, boardVO.getBoardId());
             psmt.executeUpdate();
-        } catch (SQLException SQLe) {
-            SQLe.printStackTrace();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        } finally {
+            ConnectionJdbc.releaseResources();
         }
 
     }
@@ -177,14 +200,22 @@ public class BoardDAO {
      * @See 비밀번호 암호화, 복호화 X /
      */
     public void deleteBoard(Long boardId) {
-        String sql = "DELETE FROM board " +
-                "WHERE board_id = ?";
         try {
+            String fileSQL = "DELETE FROM file " +
+                    "WHERE board_id = ?";
+            String sql = "DELETE FROM board " +
+                    "WHERE board_id = ?";
+            psmt = conn.prepareStatement(fileSQL);
+            psmt.setLong(1, boardId);
+            psmt.execute();
+
             psmt = conn.prepareStatement(sql);
             psmt.setLong(1, boardId);
             psmt.execute();
-        } catch (SQLException SQLe) {
-            SQLe.printStackTrace();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        } finally {
+            ConnectionJdbc.releaseResources();
         }
     }
 
@@ -196,10 +227,9 @@ public class BoardDAO {
      * @See 암호화,복호화 X, 보안 X
      */
     public String getPassWord(Long boardId) {
-        String sql = "SELECT password FROM board WHERE board_id = ?";
         String passWord = "";
-
         try {
+            String sql = "SELECT password FROM board WHERE board_id = ?";
             psmt = conn.prepareStatement(sql);
             psmt.setLong(1, boardId);
             rs = psmt.executeQuery();
@@ -208,35 +238,32 @@ public class BoardDAO {
                 return passWord;
             }
 
-        } catch (SQLException SQLe) {
-            SQLe.printStackTrace();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        } finally {
+            ConnectionJdbc.releaseResources();
         }
         return passWord;
     }
 
-
-
     /**
-     * BoardDAO 클래스 내부에서 연결되는 모든 자원을 해제함.
+     * board 게시판의 개수를 구하는 메서드.
+     * @return board의 개수.
      */
-    public void releaseResources() {
+    public int getListCount() {
+        int boardCount = 0;
         try {
-            if (generatedKeys != null) {
-                generatedKeys.close();
+            String sql = "SELECT count(*) FROM board";
+            psmt = conn.prepareStatement(sql);
+            rs = psmt.executeQuery();
+            if(rs.next()) {
+                boardCount = rs.getInt(1);
             }
-            if (rs != null) {
-                rs.close();
-            }
-            if (psmt != null) {
-                psmt.close();
-            }
-            if (conn != null) {
-                conn.close();
-            }
-        } catch (SQLException SQLe) {
-            SQLe.printStackTrace();
+        }catch(SQLException e) {
+            e.printStackTrace();
+        }finally {
+            ConnectionJdbc.releaseResources();
         }
+        return boardCount;
     }
-
-
 }

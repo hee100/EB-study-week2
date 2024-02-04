@@ -16,7 +16,7 @@ public class CategoryDAO {
     private ResultSet rs;
 
     public CategoryDAO() {
-        conn = new ConnectionJdbc().getConnection();
+        conn = ConnectionJdbc.getConnection();
     }
 
     /**
@@ -36,8 +36,10 @@ public class CategoryDAO {
             if (rs.next()) {
                 categoryName = rs.getString("category_name");
             }
-        } catch (SQLException SQLe) {
-            SQLe.printStackTrace();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        } finally {
+            ConnectionJdbc.releaseResources();
         }
 
         return categoryName;
@@ -64,31 +66,13 @@ public class CategoryDAO {
                         .build();
                 categoryList.add(categoryVO);
             }
-        } catch (SQLException SQLe) {
-            SQLe.printStackTrace();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        } finally {
+            ConnectionJdbc.releaseResources();
         }
 
         return categoryList;
     }
 
-    /**
-     * CategoryDAO 클래스 내부에서 연결되는 모든 자원을 해제함.
-     * @See categoryDAO 내부의 메서드 마지막 구문마다 releaseReources를 추가할지,
-     * <p>.jsp내부 에서 사용할지 생각하다가 자원 해제 시기를 직접 정하는게 좋을것 같아 .jsp 내부에서 사용하기로 결정.</p>
-     */
-    public void releaseResources() {
-        try {
-            if (rs != null) {
-                rs.close();
-            }
-            if (psmt != null) {
-                psmt.close();
-            }
-            if (conn != null) {
-                conn.close();
-            }
-        } catch (SQLException SQLe) {
-            SQLe.printStackTrace();
-        }
-    }
 }

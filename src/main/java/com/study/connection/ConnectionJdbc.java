@@ -1,8 +1,6 @@
 package com.study.connection;
 
-import java.sql.Connection;
-import java.sql.DriverManager;
-import java.sql.SQLException;
+import java.sql.*;
 
 public class ConnectionJdbc {
 
@@ -10,8 +8,7 @@ public class ConnectionJdbc {
     static final String USER = "ebsoft";
     static final String PASS = "ebsoft";
 
-    public Connection getConnection() {
-
+    public static Connection getConnection() {
         Connection conn = null;
 
         try {
@@ -27,9 +24,18 @@ public class ConnectionJdbc {
         } catch (Exception e) {
             throw new RuntimeException(e.getMessage());
         }
-
         return conn;
     }
 
-
+    public static void releaseResources(AutoCloseable... resources) {
+        for (AutoCloseable resource : resources) {
+            if (resource != null) {
+                try {
+                    resource.close();
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+    }
 }

@@ -16,7 +16,7 @@ public class CommentDAO {
     private ResultSet rs;
 
     public CommentDAO() {
-        conn = new ConnectionJdbc().getConnection();
+        conn = ConnectionJdbc.getConnection();
     }
 
     /**
@@ -33,8 +33,10 @@ public class CommentDAO {
             psmt.setLong(idx++, commentVO.getBoardId());
             psmt.setString(idx++, commentVO.getContent());
             psmt.executeUpdate();
-        } catch (SQLException SQLe) {
-            SQLe.printStackTrace();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        } finally {
+            ConnectionJdbc.releaseResources();
         }
     }
 
@@ -60,30 +62,12 @@ public class CommentDAO {
                         .build();
                 commentVOs.add(commentVO);
             }
-        } catch (SQLException SQLe) {
-            SQLe.printStackTrace();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        } finally {
+            ConnectionJdbc.releaseResources();
         }
 
         return commentVOs;
     }
-
-    /**
-     * CommentDAO 클래스 내부에서 연결되는 모든 자원을 해제함.
-     */
-    public void releaseResources() {
-        try {
-            if (rs != null) {
-                rs.close();
-            }
-            if (psmt != null) {
-                psmt.close();
-            }
-            if (conn != null) {
-                conn.close();
-            }
-        } catch (SQLException SQLe) {
-            SQLe.printStackTrace();
-        }
-    }
-
 }
